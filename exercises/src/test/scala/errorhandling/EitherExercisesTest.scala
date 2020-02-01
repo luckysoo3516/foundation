@@ -1,6 +1,6 @@
 package errorhandling
 
-import java.time.{Duration, LocalDate, ZoneOffset}
+import java.time.{Duration, Instant, LocalDate, ZoneOffset}
 import java.util.UUID
 
 import exercises.errorhandling.EitherExercises.CountryError.InvalidFormat
@@ -12,6 +12,9 @@ import org.scalatest.Matchers
 import org.scalatest.funsuite.AnyFunSuite
 
 class EitherExercisesTest extends AnyFunSuite with Matchers {
+
+  def startOfDay(year: Int, month: Int, day: Int): Instant =
+    LocalDate.of(year, month, day).atStartOfDay.toInstant(ZoneOffset.UTC)
 
   ////////////////////////
   // 1. Use cases
@@ -37,15 +40,40 @@ class EitherExercisesTest extends AnyFunSuite with Matchers {
     checkout(baseOrder) shouldEqual Right(baseOrder.copy(status = "Checkout"))
   }
 
-  test("submit") {}
+  test("submit") {
+    val item      = Item("xxx", 2, 12.34)
+    val now       = startOfDay(2019, 6, 12)
+    val baseOrder = Order("123", "Checkout", List(item), Some("10 high street"), None, None)
 
-  test("deliver") {}
+    submit(baseOrder, now) shouldEqual Right(baseOrder.copy(status = "Submitted", submittedAt = Some(now)))
+    submit(baseOrder.copy(deliveryAddress = None), now) shouldEqual Left("Checkout")
+    submit(baseOrder.copy(status = "Draft"), now) shouldEqual Left("Draft")
+  }
+  test("deliver") {
+    val item        = Item("xxx", 2, 12.34)
+    val submittedAt = startOfDay(2019, 6, 12)
+    val now         = startOfDay(2019, 6, 15)
+    val baseOrder   = Order("123", "Submitted", List(item), Some("10 high street"), Some(submittedAt), None)
+
+    deliver(baseOrder, now) shouldEqual Right(
+      (baseOrder.copy(status = "Delivered", deliveredAt = Some(now)), Duration.ofDays(3))
+    )
+    deliver(baseOrder.copy(submittedAt = None), now) shouldEqual Left("Submitted")
+    deliver(baseOrder.copy(status = "Draft"), now) shouldEqual Left("Draft")
+
+  }
 
   //////////////////////////////////
   // 2. Import code with Exception
   //////////////////////////////////
 
-  test("parseUUID") {}
+  test("parseUUID") {
+
+    parseUUID("123e4567-e89b-12d3-a456-426655440000") shouldEqual Right(
+      UUID.fromString("123e4567-e89b-12d3-a456-426655440000")
+    )
+    parseUUID("foo").isLeft shouldEqual true
+  }
 
   //////////////////////////////////
   // 3. Advanced API
@@ -59,9 +87,16 @@ class EitherExercisesTest extends AnyFunSuite with Matchers {
     validateUsername(" !") shouldEqual Left(TooSmall(1))
   }
 
-  test("validateUsernameSize") {}
+  test("validateUsernameSize") {
+    validateUsernameSize("moreThan3Char") shouldEqual Right(())
+    validateUsernameSize("foo") shouldEqual Right(())
+    validateUsernameSize("fo") shouldEqual Left(TooSmall(2))
+  }
 
-  test("validateUsernameCharacters") {}
+  test("validateUsernameCharacters") {
+    validateUsernameCharacters("abcABC123-_") shouldEqual Right(())
+    validateUsernameCharacters("foo!~23}AD") shouldEqual Left(InvalidCharacters(List('!', '~', '}')))
+  }
 
   test("validateUser") {}
 
