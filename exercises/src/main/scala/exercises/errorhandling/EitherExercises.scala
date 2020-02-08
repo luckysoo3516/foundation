@@ -225,6 +225,6 @@ object EitherExercises {
   // sequenceAcc(List(Right(1), Right(2), Right(3))) == Right(List(1,2,3))
   // sequenceAcc(List(Left(List("e1", "e2")), Right(1), Left(List("e3")))) == Left(List("e1", "e2", "e3"))
   // Note: you may find it useful to reuse `map2Acc`
-  def sequenceAcc[E, A](xs: List[Either[List[E], A]]): Either[List[E], List[A]] =
-    xs.foldRight(Right(Nil))(map2Acc(_, _)(_ :: _))
+//  def sequenceAcc[E, A](xs: List[Either[List[E], A]]): Either[List[E], List[A]] =
+//    xs.foldRight(Right(Nil))(map2Acc(_, _)(_ :: _))
 }

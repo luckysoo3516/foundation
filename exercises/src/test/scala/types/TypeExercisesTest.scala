@@ -10,7 +10,12 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.typelevel.discipline.scalatest.Discipline
 
 class TypeExercisesTest extends AnyFunSuite with Discipline with Matchers {
+  test("compare result") {
+    compareChar('a', 'c') shouldEqual CompareResult.Less
+    compareChar('c', 'a') shouldEqual CompareResult.Greater
+    compareChar('a', 'a') shouldEqual CompareResult.Equal
 
+  }
   test("intOrBoolean") {
     intOrBoolean.cardinality.eval shouldEqual Some(BigInt(2).pow(32) + 2)
   }

@@ -1,11 +1,13 @@
 package exercises.types
 
 import java.time.Instant
-import java.util.UUID
+import java.util.{Date, UUID}
 
+import cats.data.NonEmptyList
 import eu.timepit.refined.types.numeric.PosInt
 import exercises.sideeffect.IOExercises.IO
 import exercises.types.Card._
+import exercises.types.TypeExercises.OrderStatus.{Canceled, CheckOut, Delivered, Submitted}
 
 // You can run and print things here:
 object TypeApp extends App {
@@ -25,7 +27,17 @@ object TypeExercises {
   //         compareChar('c', 'c') ==  0
   //         compareChar('c', 'a') ==  1
   // What is wrong with this function? How could you improve it?
-  def compareChar(c1: Char, c2: Char): Int = ???
+  sealed trait CompareResult
+  object CompareResult {
+    case object Greater extends CompareResult
+    case object Equal extends CompareResult
+    case object Less extends CompareResult
+  }
+
+  def compareChar(c1: Char, c2: Char): CompareResult =
+    if(c1 > c2) CompareResult.Greater
+    else if(c1 == c2) CompareResult.Equal
+    else CompareResult.Less
 
   // 1b. Implement `mostRecentBlogs` that returns the `n` most recent blog posts
   // such as mostRecentBlogs(1)(List(
@@ -33,15 +45,21 @@ object TypeExercises {
   //   BlogPost(23,Thoughts of the day,2019-09-21T08:14:06.702836Z)
   // )) == List(BlogPost(23,Thoughts of the day,2019-09-21T08:14:06.702836Z))
   // What is wrong with this function? How could you improve it?
-  case class BlogPost(id: String, title: String, createAt: String)
+  case class BlogPost(id: Int, title: String, createAt: Date)
 
-  def mostRecentBlogs(n: Int)(blogs: List[BlogPost]): List[BlogPost] = ???
+  def mostRecentBlogs(n: Int)(blogs: List[BlogPost]): List[BlogPost] =
+    blogs.sortBy(_.createAt).take(n)
 
   // 1c. Implement `User#address` that returns the full address for a User (e.g. to send a parcel)
   // such as User("John Doe", Some(108), Some("Cannon Street"), Some("EC4N 6EU")) == "108 Canon Street EC4N 6EU"
   // What is wrong with this function? How could you improve it?
   case class User(name: String, streetNumber: Option[Int], streetName: Option[String], postCode: Option[String]) {
-    def address: String = ???
+    def address: Option[String] =
+      for {
+        snumber <- streetNumber
+        sname <- streetName
+        pcode <- postCode
+      } yield s"$snumber $sname $pcode"
   }
 
   // 1d. Implement `Invoice#discountFirstItem` that returns a new invoice with the first item discounted.
@@ -50,13 +68,25 @@ object TypeExercises {
   case class InvoiceItem(id: String, quantity: Int, price: Double)
   // An invoice must have at least one item.
   case class Invoice(id: String, items: List[InvoiceItem]) {
-    def discountFirstItem(discountPercent: Double): Invoice = ???
+    def discountFirstItem(discountPercent: Double): Either[Throwable, Invoice] =
+      if(items.head.quantity == 0) Left(new RuntimeException("An invoice must have at least one item."))
+      else {
+        val newPrice = items.head.price * (1- discountPercent)
+        val newHead = items.head.copy(price = newPrice)
+        val newTail = items.tail
+        Right(copy(items = newHead :: newTail))
+      }
   }
 
   // 1e. Implement `createTicket` that instantiates a Ticket with 0 story point,
   // a random ticket id (see `genTicketId`) and the current time (see `readNow`).
   // What is wrong with this function? How could you improve it?
-  def createTicket(title: String): IO[Ticket] = ???
+  def createTicket(title: String): IO[Ticket] = {
+    for {
+      id <- genTicketId
+      createdAt <- readNow
+    } yield Ticket(id, title, 0, createdAt)
+  }
 
   def genTicketId: IO[TicketId] = IO.effect(TicketId(UUID.randomUUID()))
   def readNow: IO[Instant]      = IO.effect(Instant.now())
@@ -77,25 +107,75 @@ object TypeExercises {
   // When an order is in submitted, it must have a delivery address and a submitted timestamp (Instant).
   // When an order is in delivered, it must have a delivery address, a submitted and delivered timestamps (Instant).
   // An address consists of a street number and a post code.
-  trait Order
-
+  case class Order(id:UUID, createdAt: Instant, status: OrderStatus)
+  sealed trait OrderStatus
+  object OrderStatus {
+    case class Draft(basket: List[Item]) extends OrderStatus
+    case class CheckOut(address: Option[Address], basket: NonEmptyList[Item]) extends OrderStatus
+    case class Submitted(address: Address, submittedAt: Instant, basket: NonEmptyList[Item]) extends OrderStatus
+    case class Delivered(address: Address, submittedAt: Instant, deliveredAt: Instant, basket: NonEmptyList[Item]) extends OrderStatus
+    case class Canceled(status: Either[CheckOut, Submitted], canceledAt: Instant) extends OrderStatus
+  }
+  case class Item(id:UUID, quantity: Int, price: Double)
+  case class Address(streetNumber:Int, postCode: String)
   // 2b. Implement `submit` which encodes the order transition between `Checkout` to `Submitted`.
   // Verify all pre and post conditions are satisfied and if not encode the errors in an ADT.
   // What parameters should submit take?
-  def submit = ???
+
+  sealed trait SubmitError
+  object SubmitError {
+    case object NoAddressError extends SubmitError
+    case object NoCheckOutError extends SubmitError
+  }
+  def submit(order: Order): Either[SubmitError, Order] =
+    order.status match {
+      case CheckOut(None, _) =>
+        Left(SubmitError.NoAddressError)
+      case CheckOut(Some(address), basket: NonEmptyList[Item]) =>
+        Right(order.copy(status = Submitted(address, Instant.now(), basket)))
+      case _ =>
+        Left(SubmitError.NoCheckOutError)
+    }
 
   // 2c. Implement `deliver` which encodes the order transition between `Submitted` to `Delivered` status.
   // Verify all pre and post conditions are satisfied and, if not, encode the errors in an ADT.
   // You may need to modify your encoding to eliminate runtime errors.
-  def deliver = ???
+//  case class Draft(basket: List[Item]) extends OrderStatus
+//  case class CheckOut(address: Option[Address], basket: NonEmptyList[Item]) extends OrderStatus
+//  case class Submitted(address: Address, submittedAt: Instant, basket: NonEmptyList[Item]) extends OrderStatus
+//  case class Delivered(address: Address, submittedAt: Instant, deliveredAt: Instant, basket: NonEmptyList[Item]) extends OrderStatus
+  sealed trait DeliverError
+  object DeliverError {
+    case object NoSubmitted extends DeliverError
+  }
+
+  def deliver(order: Order): Either[DeliverError, Order] =
+    order.status match {
+      case Submitted(address, submittedAt, basket) =>
+        Right(order.copy(status = Delivered(address, submittedAt, Instant.now(), basket)))
+      case _ =>
+        Left(DeliverError.NoSubmitted)
+    }
 
   // 2d. Add a cancelled status.
   // An order can be cancelled only if it has a `Checkout` or `Submitted` status.
   // A cancelled order must have a cancelled timestamp (Instant).
 
+
   // 2e. Implement `cancel` which encodes the order transition between `Checkout` or `Submitted` to `Cancelled` status.
   // Verify all pre and post conditions are satisfied and, if not, encode the errors in an ADT.
   // You may need to modify your encoding to eliminate runtime errors.
+  sealed trait CancelError
+  object CancelError {
+    case object NeitherCheckoutNorSubmitted extends CancelError
+  }
+
+  def cancel(order:Order): Either[CancelError, Order] =
+    order.status match {
+      case checkout: CheckOut => Right(order.copy(status = Canceled(Left(checkout), Instant.now())))
+      case submitted: Submitted => Right(order.copy(status = Canceled(Right(submitted), Instant.now())))
+      case _ => Left(CancelError.NeitherCheckoutNorSubmitted)
+    }
 
   ////////////////////////
   // 3. Cardinality
