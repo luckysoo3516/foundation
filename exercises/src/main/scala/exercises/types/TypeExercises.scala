@@ -276,15 +276,15 @@ object TypeExercises {
   def id[A](a: A): A = ???
 
   // 4b. How many implementations exist for `mapOption`?
-  def mapOption[A, B](opt: Option[A])(f: A => B): Option[B] = ???
+  def mapOption[A, B](opt: Option[A])(f: A => B): Option[B] = ???  //(B+1)^((A + 1) * (B^A))
 
   // 4c. How many implementations exist for `mapOptionIntToBool`?
-  def mapOptionIntToBool(opt: Option[Int])(f: Int => Boolean): Option[Boolean] = ???
+  def mapOptionIntToBool(opt: Option[Int])(f: Int => Boolean): Option[Boolean] = ??? // 3 * (|Int| + 1)*(3^|Int+1|)
 
   // 4d. How would you test `mapOption` to be sure there is no bug?
-
+  // 모든 경우의 수를 테스트해본다.
   // 4e. How many implementations exist for `mapList`? How would you test it?
-  def mapList[A, B](xs: List[A])(f: A => B): List[B] = ???
+  def mapList[A, B](xs: List[A])(f: A => B): List[B] = (|B|)^((|A|) * (|B|^|A|))
 
   ////////////////////////
   // 5. Tests
@@ -293,7 +293,7 @@ object TypeExercises {
   // 5a. Given `getCurrency` signature, what is the VIC of of `getCurrency`
   // if we have one unit test, e.g. assert(getCurrency(France) == EUR)?
   // If we have two unit tests, e.g. assert(getCurrency(France) == EUR) and assert(getCurrency(Germany) = EUR)?
-  def getCurrency(country: Country): Currency = ???
+  def getCurrency(country: Country): Currency = ??? // VIC(getCurrency) = 2^3 - 1 or 2^3 - 2
 
   sealed trait Country
   object Country {
@@ -311,15 +311,16 @@ object TypeExercises {
   // 5b. Given `sign` signature, what is the VIC of of `sign`
   // if we have one unit test, e.g. assert(sign(-2) == false)?
   // If we have two unit tests, e.g. assert(sign(-2) == false), assert(sign(0) == true) and assert(sign(5) == true) ?
-  def sign(x: Int): Boolean = ???
+  def sign(x: Int): Boolean = ??? // 2 ^ |INT| - 1 or 2 ^ |INT| - 2
 
   // 5c. Can you define the VIC formula for any function A => B with n different unit tests?
+   // VIC(A=>B) = B^A - n
 
   // 5d. What is the VIC of `sign` if it has the following property based test:
-  // forAll(x: Int => sign(x) == !sign(-x)).
+  // forAll(x: Int => sign(x) == !sign(-x)). // VIC(sign) = 0
 
   // 5e. Can you define the VIC formula for any function A => B with n different property based tests?
-
+    // VIC(A=>B) = 0
   ////////////////////////
   // 6. Type Algebra
   ////////////////////////
@@ -328,28 +329,50 @@ object TypeExercises {
   // Is it also true with types?
   // To prove that two types A and B are equivalent you need to provide a pair of functions `to` and `from`
   // such as for all a: A, from(to(a)) == a, and equivalent for B.
+  def from[A](x: (A, Unit)): A
+  def to[A](x: A): (A, Unit)
+
   def aUnitToA[A]: Iso[(A, Unit), A] =
     Iso[(A, Unit), A](
-      { case (a, b) => ??? },
-      a => ???
+      { a: (A, Unit) => a._1 },
+      { a: A => (a, Unit)}
     )
 
   def aOrNothingToA[A]: Iso[Either[A, Nothing], A] =
-    Iso(_ => ???, _ => ???)
+    Iso(
+      {
+        case Left(x) => x
+      },
+      {  Left(_) }
+    )
 
   // 6b. Prove that `Option[A]` is equivalent to `Either[Unit, A]`.
   def optionToEitherUnit[A]: Iso[Option[A], Either[Unit, A]] =
-    Iso(_ => ???, _ => ???)
+    Iso(
+      {
+        case Some(x) => Right(x)
+      },
+      { case Right(x) => Some(x)}
+    )
 
   // 6c. Prove that a * (b + c) = a * b + a * c.
   def distributeTuple[A, B, C]: Iso[(A, Either[B, C]), Either[(A, B), (A, C)]] =
-    Iso(_ => ???, _ => ???)
+    Iso(
+      {
+        case (a, Left(b)) => Left((a, b)) // Either[(A, B), (A, C)]]
+        case (a, Right(c)) => Right((a, c)) // Either[(A, B), (A, C)]]
+      }
+      {
+        case Left((a, b)) => (a, Left(b))
+        case Right((a,c)) => (a, Right(c))
+      }
+    )
 
   // 6d. Prove that a ^ 1 = a.
   def power1[A]: Iso[Unit => A, A] =
     new Iso[Unit => A, A](
-      _ => ???,
-      _ => ???
+      {a: (Unit => A) => a(())},
+      {a: A => _ => a}
     )
 
   // 6e. Can you think of any other properties that types and algebra have in common?
